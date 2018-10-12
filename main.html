@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Path Finder</title>
+    <link rel="icon" href="./favicon.ico">
+    <script src="Obstacles.js" type="text/javascript"></script>
+    <script src="Controls.js" type="text/javascript"></script>
+</head>
+<link href="styleSheet.css" rel="stylesheet" type="text/css">
+<body margintop="0px">
+
+<canvas id="myCanvas"
+        width="800"
+        height="500"
+        style="border:1px solid black"></canvas>
+
+<script>
+    var mouseX, mouseY;
+    var last_down_x, last_down_y, last_up_x, last_up_y;
+    var c = document.getElementById("myCanvas");
+    var ctx = c.getContext("2d");
+    ctx.font = "21px courier";
+    printHello();
+    var tracker =
+        {
+            x: 0,
+            y: 0
+        };
+    var marker =
+        {
+            x: 0,
+            y: 0
+        };
+    var pathFinder =
+        {
+            x: 0,
+            y: 0,
+            ftx: 0,
+            fty: 0,
+            tx: 0,
+            ty: 0,
+            nx: 0,
+            ny: 0,
+            speed: 0.5,
+            dir: 0,
+            sightRadius: 100,
+            curDirRelError: 0,
+            curDesiredDir: 0,
+            width: 10,
+            height: 10
+        };
+
+
+    document.onmousemove = function (mouse) {
+        mouseX = mouse.clientX;
+        mouseY = mouse.clientY;
+        updateTrackerPosition(mouseX, mouseY, tracker);
+
+    };
+
+    document.onmousedown = function (mouse) {
+        last_down_x = mouse.clientX;
+        last_down_y = mouse.clientY;
+        updateMarkerPosition(last_down_x, last_down_y, marker);
+    };
+
+    document.onmouseup = function (mouse) {
+        last_up_x = mouse.clientX;
+        last_up_y = mouse.clientY;
+    };
+
+
+    function makeFollowMarker(f) {
+        var THRESHOLD = 10;
+        if (Math.abs(f.x - marker.x) > THRESHOLD ||
+            Math.abs(f.y - marker.y) > THRESHOLD) {
+            f.dir = Math.atan2(marker.y - f.y, marker.x - f.x);
+            console.log("seeking");
+            f.nx = f.x + Math.cos(f.dir) * f.speed;
+            f.ny = f.y + Math.sin(f.dir) * f.speed;
+        }
+        f.x = f.nx;
+        f.y = f.ny;
+    }
+
+    function drawSightRing(x, y, r) {
+//        ctx.fillStyle = 'rgba(0,0,200,0)';
+        ctx.beginPath();
+        ctx.strokeStyle = '#FF00FF';
+        ctx.arc(x, y, r, 0, 2 * Math.PI);
+        ctx.stroke();
+    }
+
+    function drawRotatedRect(x, y, width, height, radians) {
+
+        // first save the untranslated/unrotated context
+        ctx.save();
+
+        ctx.beginPath();
+        // move the rotation point to the center of the rect
+        ctx.translate(x + width / 2, y + height / 2);
+        // rotate the rect
+        ctx.rotate(radians - .5 * Math.PI);
+
+        ctx.moveTo(-5, -5);
+        ctx.lineTo(5, -5);
+        ctx.lineTo(5, 10);
+        ctx.lineTo(0, 15);
+        ctx.lineTo(-5, 10);
+        ctx.closePath();
+        ctx.fill();
+
+        // restore the context to its untranslated/unrotated state
+        ctx.restore();
+    }
+
+    function drawFollower(f) {
+        ctx.fillStyle = '#000';
+        drawRotatedRect(f.x, f.y, f.width, f.height, f.dir);
+//        ctx.fillRect(f.x - .5 * f.width, f.y - .5 * f.height, f.width, f.height);
+//        ctx.fill();
+    }
+
+    gobs = [];
+    //    gobs[0] = {x: 50, y: 100, xPts: [-10, 0, 10], yPts: [0, -20, 0]};
+    //    gobs[1] = {x: 300, y: 300, xPts: [-50, 0, 50], yPts: [0, -100, 0]};
+
+
+    function addObstacleToList(list, newX, newY, newXPts, newYPts) {
+        console.log("adding obstacle to list")
+        list[list.length] = {x: newX, y: newY, xPts: newXPts, yPts: newYPts};
+        console.log(list)
+    }
+
+
+    function addRandomObstacleToList(list, x, y, width, height) {
+        var xPts = [];
+        var yPts = [];
+        for (var i = 0; i < 8; i++) {
+            var curXRadius = Math.random() * width / 2;
+            var curYRadius = Math.random() * height / 2;
+            var curAngle = Math.PI * 2 * i / 8;
+            var curXPoint = x + (Math.cos(curAngle) * curXRadius);
+            var curYPoint = y + (Math.sin(curAngle) * curYRadius);
+            xPts[i] = curXPoint;
+            yPts[i] = curYPoint;
+//            console.log(curAngle);
+//            console.log(curXPoint);
+//            console.log(curYPoint);
+//            console.log(curXRadius);
+//            console.log(curYRadius);
+        }
+        console.log(xPts);
+        console.log(yPts);
+
+        addObstacleToList(list, x / 2, y / 2, xPts, yPts); //WHY /2??? I HAVE NO CLUE
+    }
+
+    addObstacleToList(gobs, 50, 100, [-10, 0, 10], [0, -20, 0]);
+    addRandomObstacleToList(gobs, 300, 200, 300, 400);
+    addRandomObstacleToList(gobs, 100, 200, 150, 100);
+    addRandomObstacleToList(gobs, 500, 150, 30, 300);
+
+    function drawObstacle(ctx, centerX, centerY, xPts, yPts) {
+        ctx.fillStyle = '#f00';
+        ctx.beginPath();
+        ctx.moveTo(centerX + xPts[0], centerY + yPts[0]);
+        for (var i = 1; i < xPts.length; i++) {
+            ctx.lineTo(centerX + xPts[i], centerY + yPts[i]);
+        }
+        ctx.closePath();
+        ctx.fill();
+
+    }
+
+    function drawObstacles(ctx, obs) {
+        for (var i = 0; i < obs.length; i++) {
+            drawObstacle(ctx, obs[i].x, obs[i].y, obs[i].xPts, obs[i].yPts)
+        }
+    }
+
+    function update() {
+        ctx.globalAlpha = 1;
+        ctx.clearRect(0, 0, c.width, c.height);
+
+        makeFollowMarker(pathFinder);
+        drawFollower(pathFinder);
+
+        drawTracker(ctx, tracker);
+        drawMarker(ctx, marker);
+        drawLogger(ctx);
+        drawSightRing(pathFinder.x, pathFinder.y, 100);
+        drawObstacles(ctx, gobs);
+    }
+
+    setInterval(update, 2);
+
+
+</script>
+
+</body>
+</html>
